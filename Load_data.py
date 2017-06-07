@@ -8,10 +8,11 @@ def load_data(valid_index=0, n_parts=10):
                 data = pickle.load(f)
                 X = data['X']
                 Y = data['Y']
-    
+
     # Match example and label together and shuffle the whole dataset
-    dataset = zip(X,Y)
-    random.seed(1234)
-    random.shuffle(dataset)
+    np.random.seed(1234)
+    np.random.shuffle(X)
+    np.random.seed(1234)
+    np.random.shuffle(Y)
     
-    return dataset
+    return X, Y

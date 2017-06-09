@@ -17,7 +17,7 @@ class AutoEncoder():
         n_units: array of hidden units. Tells how many layers
         n_classes: number of classes
     """
-    def __init__(self, n_dims, n_units, ae_nl, learning_rate=0.001, L2 =0.01):
+    def __init__(self, n_dims, n_units, ae_nl, learning_rate=0.001, L2 =0.01, p_drop=0.0):
         
         #input sequence
         inputs = tt.matrix('input') #matrix of possibly noisy minibatch n_mb x n_dims
@@ -125,13 +125,14 @@ class AutoEncoderRegressor():
         n_classes: number of classes
     """
 
-    def __init__(self, n_dims, encode_units, regress_units, ae_nl, r_nl, learning_rate=0.001, L2 =0.01):
+    def __init__(self, n_dims, encode_units, regress_units, ae_nl, r_nl, learning_rate=0.001, L2 =0.01, p_drop=0.0):
 
         # input sequence
         inputs = tt.matrix('input')  # matrix of possibly noisy minibatch n_mb x n_dims
         clean_inputs = tt.matrix('target')  # vector of clean outputs
         targets = tt.matrix('target')  # vector of values to regress
         recon_ratio = tt.scalar('recon_ratio')  # reconstruction ratio (do we focus the loss on reconstruction or regression?)
+        train_indicator = tt.scalar('train indicator')
 
         self.layers = []
         self.encoder_layers = []
@@ -144,6 +145,7 @@ class AutoEncoderRegressor():
             encode_units[0])
         self.layers.append(lay1)
         self.encoder_layers.append(lay1)
+
         for i in range(1, len(encode_units)):
             lay = FFLayer(
                 ae_nl,
@@ -172,21 +174,29 @@ class AutoEncoderRegressor():
             r_nl,
             self.encoder_layers[-1].output,
             self.encoder_layers[-1].nout,
-            regress_units[0])
+            regress_units[0],
+            p_drop=p_drop,
+            train=train_indicator)
         self.layers.append(lay)
+
         for i in range(1, len(regress_units)):
             lay = FFLayer(
                 r_nl,
                 self.layers[-1].output,
                 self.layers[-1].nout,
-                regress_units[i])
+                regress_units[i],
+                p_drop=p_drop,
+                train=train_indicator)
             self.layers.append(lay)
+
         #Last layer, one unit (predicted scalar):
         self.regressor = FFLayer(
             'linear',
             self.layers[-1].output,
             self.layers[-1].nout,
-            1)
+            1,
+            p_drop=p_drop,
+            train=train_indicator)
         self.layers.append(self.regressor)
 
         # L2 regularization
@@ -210,7 +220,7 @@ class AutoEncoderRegressor():
         updates = optim.Adam(params, grads, lr=learning_rate)
 
         self.train = theano.function(
-            inputs=[inputs, clean_inputs, targets, recon_ratio],
+            inputs=[inputs, clean_inputs, targets, recon_ratio, train_indicator],
             outputs=[
                 self.regressor.output,
                 self.decoder.output,
@@ -222,7 +232,7 @@ class AutoEncoderRegressor():
         )
 
         self.test = theano.function(
-            inputs=[inputs, clean_inputs, targets, recon_ratio],
+            inputs=[inputs, clean_inputs, targets, recon_ratio, train_indicator],
             outputs=[
                 self.regressor.output,
                 self.decoder.output,
@@ -232,7 +242,7 @@ class AutoEncoderRegressor():
             allow_input_downcast=True)
 
         self.predict = theano.function(
-            inputs=[inputs],
+            inputs=[inputs, train_indicator],
             outputs=[
                 self.regressor.output,
                 self.decoder.output],
